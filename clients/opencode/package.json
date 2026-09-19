@@ -1,0 +1,25 @@
+{
+  "name": "@tandryio/client-opencode",
+  "version": "0.1.0-alpha.1",
+  "type": "module",
+  "main": "./dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "license": "Apache-2.0",
+  "description": "Tandry messaging for OpenCode agent conversations.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tandryio/tandry.git",
+    "directory": "clients/opencode"
+  },
+  "homepage": "https://tandry.io",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

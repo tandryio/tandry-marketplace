@@ -1,0 +1,14 @@
+{
+  "source": {
+    "repository": "https://github.com/tandryio/tandry",
+    "commit": "58eacde7e1b458be1e06b48b7ce4229c975b0335",
+    "dirty": false
+  },
+  "versions": {
+    "claude": "0.1.0-alpha.1",
+    "codex": "0.1.0-alpha.1",
+    "dsh": "0.1.0-alpha.1",
+    "opencode": "0.1.0-alpha.1",
+    "pi": "0.1.0-alpha.1"
+  }
+}

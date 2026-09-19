@@ -1,0 +1,17 @@
+{
+  "name": "@tandryio/client-codex",
+  "version": "0.1.0-alpha.1",
+  "type": "module",
+  "license": "Apache-2.0",
+  "files": [
+    "dist",
+    ".codex-plugin",
+    ".mcp.json",
+    "hooks",
+    "skills",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md"
+  ]
+}

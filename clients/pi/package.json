@@ -1,0 +1,36 @@
+{
+  "name": "@tandryio/client-pi",
+  "version": "0.1.0-alpha.1",
+  "type": "module",
+  "pi": {
+    "extensions": [
+      "./dist/index.cjs"
+    ]
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "license": "Apache-2.0",
+  "description": "Tandry messaging for Pi agent conversations.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tandryio/tandry.git",
+    "directory": "clients/pi"
+  },
+  "homepage": "https://tandry.io",
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "pi-package",
+    "tandry"
+  ],
+  "peerDependencies": {
+    "typebox": "*"
+  }
+}
