@@ -36754,7 +36754,7 @@ async function mcp() {
   });
   await serveStdio({
     bridge: { tools: tools2, dispose: bridge.dispose },
-    version: true ? "0.1.0-alpha.1" : "0.0.0-dev",
+    version: true ? "0.1.0-alpha.2" : "0.0.0-dev",
     extraTools: [codexEvent],
     onCall({ arguments: args, meta: meta3 }) {
       if (typeof args.cwd === "string" && args.cwd.startsWith("/")) cwd ??= args.cwd;

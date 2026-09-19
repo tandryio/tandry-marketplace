@@ -1,14 +1,14 @@
 {
   "source": {
     "repository": "https://github.com/tandryio/tandry",
-    "commit": "58eacde7e1b458be1e06b48b7ce4229c975b0335",
+    "commit": "13da0b24e79e90023a21c65185f785414b6100b4",
     "dirty": false
   },
   "versions": {
-    "claude": "0.1.0-alpha.1",
-    "codex": "0.1.0-alpha.1",
-    "dsh": "0.1.0-alpha.1",
-    "opencode": "0.1.0-alpha.1",
-    "pi": "0.1.0-alpha.1"
+    "claude": "0.1.0-alpha.2",
+    "codex": "0.1.0-alpha.2",
+    "dsh": "0.1.0-alpha.2",
+    "opencode": "0.1.0-alpha.2",
+    "pi": "0.1.0-alpha.2"
   }
 }

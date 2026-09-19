@@ -36763,7 +36763,7 @@ async function mcp() {
   timer.unref();
   poll();
   await serveStdio({
-    version: true ? "0.1.0-alpha.1" : "0.0.0-dev",
+    version: true ? "0.1.0-alpha.2" : "0.0.0-dev",
     bridge: {
       tools: bridge.tools.map((tool2) => ({ ...tool2, call: (params) => bridge.tools.find((entry) => entry.name === tool2.name).call(params) })),
       dispose() {

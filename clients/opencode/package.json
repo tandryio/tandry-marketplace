@@ -1,6 +1,6 @@
 {
-  "name": "@tandryio/client-opencode",
-  "version": "0.1.0-alpha.1",
+  "name": "@tandryio/opencode",
+  "version": "0.1.0-alpha.2",
   "type": "module",
   "main": "./dist/index.js",
   "files": [
