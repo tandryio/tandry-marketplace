@@ -1,6 +1,6 @@
 {
   "name": "tandry",
-  "version": "0.1.0-alpha.4",
+  "version": "0.1.0-alpha.5",
   "description": "Connect this conversation to a Tandry room with the local Codex adapter. Automatic delivery is verified in CLI; Desktop acceptance is pending.",
   "author": {
     "name": "henrylo"

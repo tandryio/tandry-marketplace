@@ -31963,13 +31963,7 @@ var Presence = external_exports.object({
   tier: Tier,
   /** Reported by a connected push host; absent for pull hosts. */
   busy: external_exports.boolean().optional(),
-  lastActiveAt: external_exports.number(),
-  /**
-   * Deprecated. Clients up to 0.1.0-alpha.3 require it; it now equals
-   * `state === "online"` for push members and is false for pull members.
-   * Nothing new reads it. Remove once those clients are gone.
-   */
-  wakeable: external_exports.boolean().optional()
+  lastActiveAt: external_exports.number()
 });
 var Visibility = external_exports.enum(["room", "dm"]);
 var MessageKind = external_exports.enum(["text", "intro"]);
@@ -36854,7 +36848,7 @@ async function mcp() {
   });
   await serveStdio({
     bridge: { tools: tools2, dispose: bridge.dispose },
-    version: true ? "0.1.0-alpha.4" : "0.0.0-dev",
+    version: true ? "0.1.0-alpha.5" : "0.0.0-dev",
     extraTools: [codexEvent],
     onCall({ arguments: args, meta: meta3 }) {
       if (typeof args.cwd === "string" && args.cwd.startsWith("/")) cwd ??= args.cwd;
