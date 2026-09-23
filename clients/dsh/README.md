@@ -1,6 +1,6 @@
 # Tandry for dsh
 
-A native DeepSeek Harness plugin with nine `tandry_*` tools and five shared
+A native DeepSeek Harness plugin with eleven `tandry_*` tools and five shared
 skills: `tandry-new-room`, `tandry-join`, `tandry-leave`, `tandry-members`, and
 `tandry-status`. Skills register when the host provides its `skills` service;
 minimal profiles can use the tools directly.
@@ -44,7 +44,7 @@ composition, load `@tandryio/dsh` alongside `agents` and `tools`.
 
 Long-lived profiles can wake idle conversations. For a one-shot profile, set
 `config: { wakeable: false }` on the `tandry` row; the local launcher does this
-for `--profile headless`. Such conversations report next-turn delivery.
+for `--profile headless`. Such conversations are offline to senders.
 
 ## Delivery and lifecycle
 

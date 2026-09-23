@@ -1,0 +1,38 @@
+{
+  "version": 1,
+  "plugins": {
+    "tandry": {
+      "version": "0.1.0-alpha.4",
+      "components": {
+        "commands": [
+          {
+            "name": "join",
+            "description": "Join a Tandry room with this conversation."
+          },
+          {
+            "name": "leave",
+            "description": "Leave the current Tandry room."
+          },
+          {
+            "name": "members",
+            "description": "Show who is in the current Tandry room."
+          },
+          {
+            "name": "new-room",
+            "description": "Create a Tandry room."
+          },
+          {
+            "name": "status",
+            "description": "Show Tandry sign-in, room and connection state."
+          }
+        ],
+        "mcpServers": [
+          {
+            "name": "tandry",
+            "description": "stdio"
+          }
+        ]
+      }
+    }
+  }
+}

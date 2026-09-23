@@ -12230,6 +12230,7 @@ function inactive(view) {
   if (!view.joined) return "This conversation has not joined a room.";
   if (view.ended) return view.ended.message && view.ended.reason === "upgrade_required" ? view.ended.message : ENDED[view.ended.reason];
   if (!view.connected) return "The connection to the Hub dropped; reconnecting. Operations still work.";
+  if (!view.wakeable) return view.unwakeable ?? "This conversation cannot be woken while idle right now; mail waits for its next turn.";
   return null;
 }
 
@@ -31937,11 +31938,12 @@ function parseAddress(address) {
   const slash = address.indexOf("/");
   return { handle: address.slice(0, slash), name: address.slice(slash + 1) };
 }
-var HostKind = external_exports.enum(["claude", "codex", "kimi", "pi", "opencode", "dsh", "claude-web", "chatgpt-web", "web"]);
+var HostKind = external_exports.enum(["claude", "codex", "grok", "kimi", "pi", "opencode", "dsh", "claude-web", "chatgpt-web", "web"]);
 var Tier = external_exports.enum(["push", "pull"]);
 var HOST_LABELS = {
   claude: "Claude Code",
   codex: "Codex",
+  grok: "Grok Build",
   kimi: "Kimi Code",
   pi: "pi",
   opencode: "opencode",
@@ -31960,11 +31962,15 @@ var MemberState = external_exports.enum(["online", "offline"]);
 var Presence = external_exports.object({
   state: MemberState,
   tier: Tier,
-  /** Only meaningful for an online push member. */
-  wakeable: external_exports.boolean(),
   /** Reported by a connected push host; absent for pull hosts. */
   busy: external_exports.boolean().optional(),
-  lastActiveAt: external_exports.number()
+  lastActiveAt: external_exports.number(),
+  /**
+   * Deprecated. Clients up to 0.1.0-alpha.3 require it; it now equals
+   * `state === "online"` for push members and is false for pull members.
+   * Nothing new reads it. Remove once those clients are gone.
+   */
+  wakeable: external_exports.boolean().optional()
 });
 var Visibility = external_exports.enum(["room", "dm"]);
 var MessageKind = external_exports.enum(["text", "intro"]);
@@ -32168,7 +32174,7 @@ var new_room = operation({
     description: external_exports.string().trim().max(ROOM_DESCRIPTION_LIMIT)
   }),
   output: external_exports.object({ id: RoomId, name: external_exports.string(), code: external_exports.string() }),
-  errors: [...SIGNED_IN, "handle_required", "limit_reached"]
+  errors: [...SIGNED_IN, "handle_required", "limit_reached", "not_in_room", "forbidden"]
 });
 var update_room = operation({
   name: "update_room",
@@ -32181,6 +32187,13 @@ var update_room = operation({
   }),
   output: RoomSummary,
   errors: [...SIGNED_IN, "no_such_room", "forbidden"]
+});
+var delete_room = operation({
+  name: "delete_room",
+  scope: "account",
+  input: external_exports.object({ room: RoomId }),
+  output: Empty,
+  errors: [...SIGNED_IN, "forbidden"]
 });
 var join = operation({
   name: "join",
@@ -32313,6 +32326,7 @@ var operations = {
   revoke_device,
   new_room,
   update_room,
+  delete_room,
   join,
   leave,
   rename,
@@ -32561,9 +32575,9 @@ Older messages exist. Call history with before: ${page.nextBefore}.` : "";
   ].join("\n") + more;
 }
 function renderPresence(presence, now) {
-  if (presence.state === "offline") return `offline, last active ${relativeTime(presence.lastActiveAt, now)}; reads it when its conversation is next opened`;
+  if (presence.state === "offline") return `offline, last active ${relativeTime(presence.lastActiveAt, now)}; reads it when its owner is next back in that conversation`;
   if (presence.tier === "pull") return "online in a web chat; reads it at its next inbox check";
-  return presence.wakeable ? "online; told now" : "online, seen on next turn";
+  return "online; told now";
 }
 function renderSent(result, now) {
   if (!result.recipients.length) return `Sent ${result.id}. On record in the room; nobody was told.`;
@@ -32637,6 +32651,10 @@ function renderError(error62, now = Date.now()) {
   if (Array.isArray(members3)) lines.push(`Members:
 ${renderMembers({ members: members3 }, now)}`);
   return lines.join("\n");
+}
+function renderMonitorMissing(view) {
+  const how = view.host === "claude" ? `Claude Code starts it when the tandry:join skill is dispatched, so invoke the Skill tool now with skill "tandry:join" and args "${view.code}". This conversation is already ${view.member} in #${view.room}; that join is reused and changes nothing.` : `Start it now with the monitor tool: command \`${view.command}\`, description "Tandry inbox", persistent true.`;
+  return `Automatic delivery is off: the Tandry inbox monitor is not running in this ${hostLabel(view.host)} session. ${how} It prints one line when a room message is waiting and nothing else; when that line arrives, call inbox.`;
 }
 
 // ../../packages/bridge/src/ops.ts
@@ -33361,7 +33379,15 @@ function createBridge(options) {
       waker.evaluate();
     },
     inactive() {
-      return inactive({ loggedIn: !!readCredentials(hub), bound: !!conversation, joined: !!marker, ended, connected: !!link?.connected });
+      return inactive({
+        loggedIn: !!readCredentials(hub),
+        bound: !!conversation,
+        joined: !!marker,
+        ended,
+        connected: !!link?.connected,
+        wakeable: options.shell.wakeable(),
+        unwakeable: options.shell.unwakeable?.() ?? null
+      });
     },
     dispose() {
       disposed = true;
@@ -36753,55 +36779,73 @@ async function serveStdio(options) {
 }
 
 // src/files.ts
+var import_node_child_process = require("node:child_process");
 var SESSION_ID = /^[A-Za-z0-9_-]{1,128}$/;
 var sessionIdFrom = (value) => typeof value === "string" && SESSION_ID.test(value) ? value : null;
 var claudePidOf = (fallback) => Number(process.env.TANDRY_CLAUDE_PID) || fallback;
 var readSession = (claudePid) => readJson(byPidPath(claudePid));
 var hostPath = (sessionId) => `${runPath(sessionId)}.host`;
 var readHost = (sessionId) => readJson(hostPath(sessionId)) ?? { busy: false, injected: null };
-var monitorPath = (claudePid) => `${byPidPath(claudePid)}.monitor`;
-var registerMonitor = (claudePid) => writeJson(monitorPath(claudePid), { pid: process.pid });
-function unregisterMonitor(claudePid) {
-  if (readJson(monitorPath(claudePid))?.pid === process.pid) remove(monitorPath(claudePid));
-}
-function monitorAlive(claudePid) {
-  const pid = readJson(monitorPath(claudePid))?.pid;
-  if (!pid) return false;
+function processIdentity(pid) {
   try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error62) {
-    return error62.code === "EPERM";
+    return (0, import_node_child_process.execFileSync)("ps", ["-o", "lstart=", "-p", String(pid)], { encoding: "utf8", timeout: 2e3 }).trim();
+  } catch {
+    return "";
   }
+}
+var MONITOR_LEASE_MS = 2e3;
+var monitorPath = (claudePid) => `${byPidPath(claudePid)}.monitor`;
+var readMonitor = (claudePid) => readJson(monitorPath(claudePid));
+var writeMonitor = (claudePid, host) => writeJson(monitorPath(claudePid), { host, seenAt: Date.now() });
+function monitorState(claudePid, identity, now = Date.now()) {
+  const record2 = readMonitor(claudePid);
+  if (!record2 || record2.host !== identity) return "none";
+  return now - record2.seenAt < MONITOR_LEASE_MS ? "running" : "exited";
 }
 
 // src/shell.ts
 var ClaudeShell = class {
   constructor(claudePid) {
     this.claudePid = claudePid;
+    this.identity = processIdentity(claudePid);
   }
   claudePid;
   host = { busy: false, injected: null };
-  monitor = false;
+  monitor = "none";
+  attended = true;
+  /** The claude process this MCP server belongs to, for telling its monitor record from an earlier process's. */
+  identity;
   wakeable() {
-    return this.monitor;
+    return this.monitor === "running";
   }
   idle() {
     return !this.host.busy;
   }
   async wake() {
-    if (!monitorAlive(this.claudePid)) throw new Error("the Tandry monitor is not running in this Claude Code session");
+    if (!this.wakeable()) throw new Error("the Tandry monitor is not running in this Claude Code session");
+  }
+  /** Whether dispatching the tandry:join skill would arm the monitor now. */
+  armable() {
+    return this.monitor === "none" && this.attended;
+  }
+  unwakeable() {
+    if (this.monitor === "running") return null;
+    if (this.monitor === "exited") return "The Tandry inbox monitor exited, and Claude Code arms one monitor per session; this conversation is not woken while idle, and its hooks announce mail at its next turn.";
+    if (!this.attended) return "Claude Code arms plugin monitors only in interactive sessions, and this is a one-shot run; this conversation is not woken while idle, and its hooks announce mail at tool boundaries.";
+    return "The Tandry inbox monitor is not running; Claude Code arms it when the tandry:join skill is dispatched.";
   }
   /** Re-reads what the hooks and the monitor recorded. Returns the key a hook newly announced, and whether idle() or wakeable() changed. */
-  refresh(sessionId) {
+  refresh(sessionId, attended) {
     const host = readHost(sessionId);
-    const monitor2 = monitorAlive(this.claudePid);
+    const monitor2 = monitorState(this.claudePid, this.identity);
     const announced = host.injected && host.injected !== this.host.injected ? host.injected : null;
-    const changed = host.busy !== this.host.busy || monitor2 !== this.monitor;
+    const changed = host.busy !== this.host.busy || monitor2 === "running" !== (this.monitor === "running");
     this.host = host;
     this.monitor = monitor2;
+    if (attended !== void 0) this.attended = attended;
     return { announced, changed };
   }
+  /** Another conversation in the same process: the hooks' record starts over, the monitor is the process's and stays. */
   reset() {
     this.host = { busy: false, injected: null };
   }
@@ -36833,7 +36877,7 @@ async function mcp() {
       bridge.bind({ host: "claude", hostConversationId: sessionId, workspace: readWorkspace(session.cwd) });
     }
     if (!sessionId) return;
-    const { announced, changed } = shell.refresh(sessionId);
+    const { announced, changed } = shell.refresh(sessionId, session?.attended);
     if (announced) bridge.announced(announced);
     if (changed) bridge.hostChanged();
   }
@@ -36841,9 +36885,19 @@ async function mcp() {
   timer.unref();
   poll();
   await serveStdio({
-    version: true ? "0.1.0-alpha.3" : "0.0.0-dev",
+    version: true ? "0.1.0-alpha.4" : "0.0.0-dev",
     bridge: {
-      tools: bridge.tools.map((tool2) => ({ ...tool2, call: (params) => bridge.tools.find((entry) => entry.name === tool2.name).call(params) })),
+      tools: bridge.tools.map((tool2) => ({
+        ...tool2,
+        async call(params) {
+          const result = await bridge.tools.find((entry) => entry.name === tool2.name).call(params);
+          const marker = !result.isError && sessionId && shell.armable() ? readMarker("claude", sessionId) : null;
+          if (!marker) return result;
+          return { ...result, text: `${result.text}
+
+${renderMonitorMissing({ host: "claude", code: marker.code, member: marker.member, room: marker.roomName })}` };
+        }
+      })),
       dispose() {
         clearInterval(timer);
         bridge.dispose();
@@ -36854,12 +36908,12 @@ async function mcp() {
 }
 
 // src/monitor.ts
-var import_node_child_process = require("node:child_process");
+var import_node_child_process2 = require("node:child_process");
 var POLL_MS2 = 500;
 var FRESH_MS = 2e3;
 function parentOf(pid) {
   try {
-    return Number((0, import_node_child_process.execFileSync)("ps", ["-o", "ppid=", "-p", String(pid)], { encoding: "utf8", timeout: 2e3 }).trim()) || null;
+    return Number((0, import_node_child_process2.execFileSync)("ps", ["-o", "ppid=", "-p", String(pid)], { encoding: "utf8", timeout: 2e3 }).trim()) || null;
   } catch {
     return null;
   }
@@ -36872,15 +36926,9 @@ function monitor() {
   let claudePid = null;
   let sessionId = null;
   let seen = 0;
-  const stop = () => {
-    if (claudePid) unregisterMonitor(claudePid);
-    process.exit(0);
-  };
-  process.on("SIGTERM", stop);
-  process.on("SIGINT", stop);
-  process.on("SIGHUP", stop);
-  process.stdout.on("error", stop);
-  setInterval(() => {
+  let host = null;
+  process.stdout.on("error", () => process.exit(0));
+  const tick = () => {
     if (!claudePid) {
       claudePid = findClaudePid();
       if (!claudePid) return;
@@ -36892,14 +36940,17 @@ function monitor() {
       sessionId = session.sessionId;
       const fresh = !!run && run.wake > 0 && Date.now() - run.wakeAt < FRESH_MS;
       seen = (run?.wake ?? 0) - (fresh ? 1 : 0);
-      registerMonitor(claudePid);
+      host ??= processIdentity(claudePid);
     }
+    if (host !== null) writeMonitor(claudePid, host);
     if (run && run.wake > seen) {
       seen = run.wake;
       if (run.wakeNotice) process.stdout.write(`${run.wakeNotice}
 `);
     }
-  }, POLL_MS2);
+  };
+  tick();
+  setInterval(tick, POLL_MS2);
 }
 
 // src/main.ts

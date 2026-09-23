@@ -64,6 +64,8 @@ function removeSession(claudePid, sessionId) {
 var hostPath = (sessionId) => `${runPath(sessionId)}.host`;
 var readHost = (sessionId) => readJson(hostPath(sessionId)) ?? { busy: false, injected: null };
 var writeHost = (sessionId, state) => writeJson(hostPath(sessionId), state);
+var monitorPath = (claudePid) => `${byPidPath(claudePid)}.monitor`;
+var removeMonitor = (claudePid) => remove(monitorPath(claudePid));
 
 // src/hook.ts
 var EVENTS = ["SessionStart", "UserPromptSubmit", "PostToolUse", "Stop", "SessionEnd"];
@@ -76,12 +78,13 @@ function handle(event, input, claudePid) {
   if (!sessionId) return {};
   const joined = () => !!readMarker("claude", sessionId);
   if (event === "SessionStart") {
-    writeSession(claudePid, { sessionId, cwd: typeof input.cwd === "string" ? input.cwd : process.cwd(), at: Date.now() });
+    writeSession(claudePid, { sessionId, cwd: typeof input.cwd === "string" ? input.cwd : process.cwd(), at: Date.now(), attended: process.env.CLAUDE_CODE_SESSION_ATTENDED !== "0" });
     if (input.source !== "compact" && joined()) writeHost(sessionId, { ...readHost(sessionId), busy: false });
     return {};
   }
   if (event === "SessionEnd") {
     removeSession(claudePid, sessionId);
+    if (input.reason !== "clear" && input.reason !== "resume") removeMonitor(claudePid);
     if (joined()) writeHost(sessionId, { ...readHost(sessionId), busy: false });
     return {};
   }

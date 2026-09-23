@@ -21058,6 +21058,7 @@ function inactive(view) {
   if (!view.joined) return "This conversation has not joined a room.";
   if (view.ended) return view.ended.message && view.ended.reason === "upgrade_required" ? view.ended.message : ENDED[view.ended.reason];
   if (!view.connected) return "The connection to the Hub dropped; reconnecting. Operations still work.";
+  if (!view.wakeable) return view.unwakeable ?? "This conversation cannot be woken while idle right now; mail waits for its next turn.";
   return null;
 }
 
@@ -21089,11 +21090,12 @@ function parseAddress(address) {
   const slash = address.indexOf("/");
   return { handle: address.slice(0, slash), name: address.slice(slash + 1) };
 }
-var HostKind = external_exports.enum(["claude", "codex", "kimi", "pi", "opencode", "dsh", "claude-web", "chatgpt-web", "web"]);
+var HostKind = external_exports.enum(["claude", "codex", "grok", "kimi", "pi", "opencode", "dsh", "claude-web", "chatgpt-web", "web"]);
 var Tier = external_exports.enum(["push", "pull"]);
 var HOST_LABELS = {
   claude: "Claude Code",
   codex: "Codex",
+  grok: "Grok Build",
   kimi: "Kimi Code",
   pi: "pi",
   opencode: "opencode",
@@ -21112,11 +21114,15 @@ var MemberState = external_exports.enum(["online", "offline"]);
 var Presence = external_exports.object({
   state: MemberState,
   tier: Tier,
-  /** Only meaningful for an online push member. */
-  wakeable: external_exports.boolean(),
   /** Reported by a connected push host; absent for pull hosts. */
   busy: external_exports.boolean().optional(),
-  lastActiveAt: external_exports.number()
+  lastActiveAt: external_exports.number(),
+  /**
+   * Deprecated. Clients up to 0.1.0-alpha.3 require it; it now equals
+   * `state === "online"` for push members and is false for pull members.
+   * Nothing new reads it. Remove once those clients are gone.
+   */
+  wakeable: external_exports.boolean().optional()
 });
 var Visibility = external_exports.enum(["room", "dm"]);
 var MessageKind = external_exports.enum(["text", "intro"]);
@@ -21320,7 +21326,7 @@ var new_room = operation({
     description: external_exports.string().trim().max(ROOM_DESCRIPTION_LIMIT)
   }),
   output: external_exports.object({ id: RoomId, name: external_exports.string(), code: external_exports.string() }),
-  errors: [...SIGNED_IN, "handle_required", "limit_reached"]
+  errors: [...SIGNED_IN, "handle_required", "limit_reached", "not_in_room", "forbidden"]
 });
 var update_room = operation({
   name: "update_room",
@@ -21333,6 +21339,13 @@ var update_room = operation({
   }),
   output: RoomSummary,
   errors: [...SIGNED_IN, "no_such_room", "forbidden"]
+});
+var delete_room = operation({
+  name: "delete_room",
+  scope: "account",
+  input: external_exports.object({ room: RoomId }),
+  output: Empty,
+  errors: [...SIGNED_IN, "forbidden"]
 });
 var join = operation({
   name: "join",
@@ -21465,6 +21478,7 @@ var operations = {
   revoke_device,
   new_room,
   update_room,
+  delete_room,
   join,
   leave,
   rename,
@@ -21713,9 +21727,9 @@ Older messages exist. Call history with before: ${page.nextBefore}.` : "";
   ].join("\n") + more;
 }
 function renderPresence(presence, now) {
-  if (presence.state === "offline") return `offline, last active ${relativeTime(presence.lastActiveAt, now)}; reads it when its conversation is next opened`;
+  if (presence.state === "offline") return `offline, last active ${relativeTime(presence.lastActiveAt, now)}; reads it when its owner is next back in that conversation`;
   if (presence.tier === "pull") return "online in a web chat; reads it at its next inbox check";
-  return presence.wakeable ? "online; told now" : "online, seen on next turn";
+  return "online; told now";
 }
 function renderSent(result, now) {
   if (!result.recipients.length) return `Sent ${result.id}. On record in the room; nobody was told.`;
@@ -22513,7 +22527,15 @@ function createBridge(options) {
       waker.evaluate();
     },
     inactive() {
-      return inactive({ loggedIn: !!readCredentials(hub), bound: !!conversation, joined: !!marker, ended, connected: !!link?.connected });
+      return inactive({
+        loggedIn: !!readCredentials(hub),
+        bound: !!conversation,
+        joined: !!marker,
+        ended,
+        connected: !!link?.connected,
+        wakeable: options.shell.wakeable(),
+        unwakeable: options.shell.unwakeable?.() ?? null
+      });
     },
     dispose() {
       disposed = true;

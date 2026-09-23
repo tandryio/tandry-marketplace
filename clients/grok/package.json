@@ -1,15 +1,13 @@
 {
-  "name": "@tandryio/claude",
+  "name": "@tandryio/grok",
   "version": "0.1.0-alpha.4",
   "type": "module",
   "license": "Apache-2.0",
   "files": [
     "dist",
-    ".claude-plugin",
+    ".grok-plugin",
     ".mcp.json",
-    "hooks",
     "commands",
-    "monitors",
     "README.md",
     "LICENSE",
     "NOTICE",
