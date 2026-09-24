@@ -1,6 +1,6 @@
 {
   "name": "tandry",
-  "version": "0.1.0-alpha.6",
+  "version": "0.1.0-alpha.7",
   "description": "Connect this conversation to a Tandry room with the local Claude Code adapter. Automatic delivery needs an interactive CLI session: Claude Code starts the plugin monitor when /tandry:join runs.",
   "author": {
     "name": "henrylo"
